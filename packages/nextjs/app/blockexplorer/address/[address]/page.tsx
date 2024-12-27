@@ -87,8 +87,8 @@ const AddressPage = async ({ params }: PageProps) => {
 
   if (isZeroAddress(address)) return null;
 
-  const contractData: { bytecode: string; assembly: string } | null = await getContractData(address);
-  return <AddressComponent address={address} contractData={contractData} />;
+  await getContractData(address);
+  return <AddressComponent address={address} />;
 };
 
 export default AddressPage;
