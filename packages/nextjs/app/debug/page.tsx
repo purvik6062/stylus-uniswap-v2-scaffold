@@ -1,4 +1,4 @@
-import { DebugContracts } from "./_components/DebugContracts";
+import DebugContracts from "./_components/DebugContracts";
 import type { NextPage } from "next";
 import { getMetadata } from "~~/utils/scaffold-eth/getMetadata";
 

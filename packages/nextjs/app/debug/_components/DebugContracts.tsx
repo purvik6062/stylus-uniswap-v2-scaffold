@@ -1,255 +1,452 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { IStylusNFT } from "./IStylusNFT";
+import React, { useEffect, useState } from "react";
+import { IMultiSig } from "./IMultiSig";
 import { ethers } from "ethers";
 
-const contractAddress = "0xa6e41ffd769491a42a6e5ce453259b93983a22ef"; // Get this from run-dev-node.sh output
-const provider = new ethers.JsonRpcProvider("http://localhost:8547/");
-const privateKey = "0xb6b15c8cb491557369f3c7d2c287b053eb229daa9c22138887752191c9520659";
-const signer = new ethers.Wallet(privateKey, provider);
-const contract = new ethers.Contract(contractAddress, IStylusNFT, signer);
+export default function DebugContracts() {
+  const [contract, setContract] = useState<ethers.Contract | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [numConfirmations, setNumConfirmations] = useState<number>(0);
+  const [transactionCount, setTransactionCount] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [lastTxHash, setLastTxHash] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    to: "",
+    value: "",
+    data: "",
+    txIndex: "",
+    checkAddress: "",
+    owners: "", // Add this field for comma-separated owner addresses
+    numConfirmationsRequired: "", // Add this field for required confirmations
+  });
+  const [isOwnerResult, setIsOwnerResult] = useState<boolean | null>(null);
 
-export function DebugContracts() {
-  const [balance, setBalance] = useState<number | null>(null);
-  const [tokenId, setTokenId] = useState<string>("");
-  const [owner, setOwner] = useState<string | null>(null);
-  const [recipientAddress, setRecipientAddress] = useState<string>("");
-  const [nftName, setNftName] = useState<string>("");
-  const [nftSymbol, setNftSymbol] = useState<string>("");
-  const [txStatus, setTxStatus] = useState<{
-    status: "none" | "pending" | "success" | "error";
-    message: string;
-  }>({ status: "none", message: "" });
+  useEffect(() => {
+    initializeContract();
+  }, []);
 
-  const fetchContractInfo = async () => {
+  const initializeContract = async () => {
     try {
-      const name = await contract.name();
-      const symbol = await contract.symbol();
-      setNftName(name);
-      setNftSymbol(symbol);
-    } catch (error) {
-      console.error("Error fetching contract info:", error);
+      if (typeof window === "undefined") return;
+
+      const contractAddress = "0xa6e41ffd769491a42a6e5ce453259b93983a22ef";
+      const rpcUrl = "http://localhost:8547";
+      const privateKey = "0xb6b15c8cb491557369f3c7d2c287b053eb229daa9c22138887752191c9520659";
+      // const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
+      // const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
+      // const privateKey = process.env.NEXT_PUBLIC_PRIVATE_KEY;
+
+      if (!contractAddress || !rpcUrl || !privateKey) {
+        throw new Error("Missing environment variables. Please check your .env.local file");
+      }
+
+      const provider = new ethers.JsonRpcProvider(rpcUrl);
+
+      try {
+        const network = await provider.getNetwork();
+        console.log("Connected to network:", network.name);
+      } catch (e) {
+        throw new Error("Failed to connect to network. Please check your RPC URL and network status");
+      }
+
+      const signer = new ethers.Wallet(privateKey, provider);
+      console.log("Signer address:", await signer.getAddress());
+
+      const newContract = new ethers.Contract(contractAddress, IMultiSig, signer);
+
+      // Verify contract deployment
+      const code = await provider.getCode(contractAddress);
+      if (code === "0x") {
+        throw new Error("No contract deployed at the specified address");
+      }
+
+      setContract(newContract);
+
+      // Test basic contract interaction
+      try {
+        await newContract.numConfirmationsRequired();
+        console.log("Contract connection successful");
+      } catch (e) {
+        throw new Error("Contract interaction failed. Please verify the contract ABI and address");
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to initialize contract";
+      setError(errorMessage);
+      console.error("Contract initialization error:", err);
     }
   };
 
-  const fetchBalance = async () => {
+  const fetchContractData = async () => {
+    if (!contract) return;
+
     try {
-      const balance = await contract.balanceOf(signer.address);
-      setBalance(Number(balance));
+      setLoading(true);
+      const [numRequired, txCount] = await Promise.all([
+        contract.numConfirmationsRequired(),
+        contract.getTransactionCount(),
+      ]);
+
+      setNumConfirmations(Number(numRequired));
+      setTransactionCount(Number(txCount));
+
+      console.log("Contract state updated:", {
+        numConfirmations: Number(numRequired),
+        transactionCount: Number(txCount),
+      });
     } catch (error) {
-      console.error("Error fetching balance:", error);
+      console.error("Error fetching contract data:", error);
+      setError("Failed to fetch contract data. Please check console for details.");
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchContractInfo();
-    fetchBalance();
-  }, []);
+    if (contract) {
+      fetchContractData();
+    }
+  }, [contract]);
 
-  const handleTransaction = async (operation: () => Promise<any>, pendingMessage: string, successMessage: string) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!contract) {
+      setError("Contract not initialized");
+      return;
+    }
+
+    setError(null);
+    setLoading(true);
+    setLastTxHash(null);
+
+    const form = e.currentTarget;
+    const action = form.getAttribute("data-action");
+
     try {
-      setTxStatus({ status: "pending", message: pendingMessage });
-      const tx = await operation();
-      if (tx) {
-        await tx.wait();
+      let tx;
+      switch (action) {
+        case "deposit":
+          tx = await contract.deposit({
+            value: ethers.parseEther(formData.value),
+          });
+          break;
+
+        case "submitTransaction":
+          tx = await contract.submitTransaction(formData.to, ethers.parseEther(formData.value), formData.data || "0x");
+          break;
+
+        case "confirmTransaction":
+          tx = await contract.confirmTransaction(formData.txIndex);
+          break;
+
+        case "executeTransaction":
+          tx = await contract.executeTransaction(formData.txIndex);
+          break;
+
+        case "revokeConfirmation":
+          tx = await contract.revokeConfirmation(formData.txIndex);
+          break;
+
+        case "checkOwner":
+          const isOwner = await contract.isOwner(formData.checkAddress);
+          setIsOwnerResult(isOwner);
+          console.log("Owner check result:", isOwner);
+          break;
+
+        case "initialize":
+          // Split comma-separated addresses into array and remove whitespace
+          const ownerAddresses = formData.owners.split(",").map(addr => addr.trim());
+          tx = await contract.initialize(ownerAddresses, ethers.toNumber(formData.numConfirmationsRequired), {
+            gasLimit: 10000000,
+          });
+          break;
+
+        default:
+          throw new Error("Invalid action");
       }
-      setTxStatus({ status: "success", message: successMessage });
-      await fetchBalance();
-    } catch (error: any) {
-      console.error("Transaction error:", error);
-      setTxStatus({
-        status: "error",
-        message: error.reason || error.message || "Transaction failed",
-      });
-    }
-    // Clear status after 5 seconds
-    setTimeout(() => {
-      setTxStatus({ status: "none", message: "" });
-    }, 5000);
-  };
 
-  const mintNFT = () => {
-    handleTransaction(() => contract.mint(), "Minting your NFT...", "NFT minted successfully!");
-  };
+      if (tx) {
+        console.log("Transaction submitted:", tx.hash);
+        setLastTxHash(tx.hash);
 
-  const mintToAddress = () => {
-    if (!ethers.isAddress(recipientAddress)) {
-      setTxStatus({
-        status: "error",
-        message: "Please enter a valid Ethereum address",
-      });
-      return;
-    }
-    handleTransaction(
-      () => contract.mintTo(recipientAddress),
-      "Minting NFT to address...",
-      `NFT minted to ${recipientAddress} successfully!`,
-    );
-  };
+        // Wait for transaction confirmation
+        const receipt = await tx.wait();
+        console.log("Transaction confirmed:", receipt);
 
-  const checkOwner = async () => {
-    if (!tokenId || isNaN(Number(tokenId))) {
-      setTxStatus({
-        status: "error",
-        message: "Please enter a valid token ID",
-      });
-      return;
-    }
-    try {
-      const ownerAddress = await contract.ownerOf(Number(tokenId));
-      setOwner(ownerAddress);
-      setTxStatus({
-        status: "success",
-        message: `Owner found: ${ownerAddress}`,
-      });
-    } catch (error: any) {
-      console.error("Error checking owner:", error);
-      setOwner(null);
-      setTxStatus({
-        status: "error",
-        message: "Token ID not found or invalid",
-      });
-    }
-  };
-
-  const burnToken = () => {
-    if (!tokenId || isNaN(Number(tokenId))) {
-      setTxStatus({
-        status: "error",
-        message: "Please enter a valid token ID",
-      });
-      return;
-    }
-    handleTransaction(
-      async () => {
-        try {
-          await contract.burn(Number(tokenId));
-        } catch (error: any) {
-          // Check for specific error conditions
-          if (error.reason && error.reason.includes("InvalidTokenId")) {
-            throw new Error("Invalid token ID. Please check and try again.");
-          }
-          // If no specific reason is provided, show a generic error message
-          throw new Error("An error occurred while trying to burn the token. Please try again.");
+        // Clear form data after successful transaction
+        if (action !== "checkOwner") {
+          setFormData({
+            to: "",
+            value: "",
+            data: "",
+            txIndex: "",
+            checkAddress: "",
+            owners: "",
+            numConfirmationsRequired: "",
+          });
         }
-      },
-      "Burning token...",
-      `Token ${tokenId} burned successfully!`,
-    );
+      }
+
+      await fetchContractData();
+    } catch (err) {
+      console.error("Transaction error:", err);
+      let errorMessage = "Transaction failed";
+
+      if (err instanceof Error) {
+        // Parse ethers error message
+        const match = err.message.match(/reason="([^"]+)"/);
+        errorMessage = match ? match[1] : err.message;
+      }
+
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  // Rest of the component remains the same...
   return (
-    <div className="flex flex-col items-center w-full max-w-3xl mx-auto p-6">
-      <div className="bg-base-100 shadow-lg rounded-2xl w-full p-8">
-        <h1 className="text-3xl font-bold mb-6 text-center">
-          {nftName} ({nftSymbol})
-        </h1>
-
-        <div className="flex justify-center mb-8">
-          <div className="bg-base-200 rounded-lg px-6 py-4 shadow-inner">
-            <span className="text-lg font-semibold">Your NFT Balance: </span>
-            <span className="text-2xl font-bold text-white">{balance !== null ? balance : "Loading..."}</span>
-          </div>
+    <div className="flex flex-col gap-4 w-full max-w-3xl mx-auto p-4">
+      {error && (
+        <div className="alert alert-error overflow-x-auto">
+          <span className="font-bold">Error:</span>
+          <span className="">{error}</span>
         </div>
+      )}
 
-        {/* Transaction Status Alert */}
-        {txStatus.status !== "none" && (
-          <div
-            className={`alert ${
-              txStatus.status === "pending"
-                ? "alert-info"
-                : txStatus.status === "success"
-                  ? "alert-success"
-                  : "alert-error"
-            } mb-4`}
-          >
-            <div className="flex items-center">
-              {txStatus.status === "pending" && <div className="loading loading-spinner loading-sm mr-2" />}
-              {txStatus.status === "success" && (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6 mr-2"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-              {txStatus.status === "error" && (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6 mr-2"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              )}
-              <span>{txStatus.message}</span>
-            </div>
+      {loading && (
+        <div className="alert alert-info">
+          <span>Processing transaction...</span>
+        </div>
+      )}
+
+      {lastTxHash && (
+        <div className="alert alert-success">
+          <span>Transaction submitted: {lastTxHash}</span>
+        </div>
+      )}
+
+      {/* Contract Status */}
+      <div className="card bg-base-200 shadow-xl">
+        <div className="card-body">
+          <h2 className="card-title">Contract Status</h2>
+          <div className="space-y-2">
+            <p>Required Confirmations: {numConfirmations}</p>
+            <p>Total Transactions: {transactionCount}</p>
           </div>
-        )}
-
-        <div className="space-y-6">
-          <div className="flex justify-center">
-            <button
-              className={`btn btn-primary w-48 ${txStatus.status === "pending" ? "loading" : ""}`}
-              onClick={mintNFT}
-              disabled={txStatus.status === "pending"}
-            >
-              {txStatus.status === "pending" ? "Minting..." : "Mint NFT"}
-            </button>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <input
-              type="text"
-              value={recipientAddress}
-              onChange={e => setRecipientAddress(e.target.value)}
-              className="input input-bordered w-full sm:w-96"
-              placeholder="Enter recipient address"
-              disabled={txStatus.status === "pending"}
-            />
-            <button
-              className={`btn btn-success ${txStatus.status === "pending" ? "loading" : ""}`}
-              onClick={mintToAddress}
-              disabled={txStatus.status === "pending"}
-            >
-              {txStatus.status === "pending" ? "Minting..." : "Mint To Address"}
-            </button>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <input
-              type="number"
-              value={tokenId}
-              onChange={e => setTokenId(e.target.value)}
-              className="input input-bordered w-full sm:w-48"
-              placeholder="Enter token ID"
-              disabled={txStatus.status === "pending"}
-            />
-            <button className="btn btn-secondary" onClick={checkOwner} disabled={txStatus.status === "pending"}>
-              Check Owner
-            </button>
-            <button
-              className={`btn btn-error ${txStatus.status === "pending" ? "loading" : ""}`}
-              onClick={burnToken}
-              disabled={txStatus.status === "pending"}
-            >
-              {txStatus.status === "pending" ? "Burning..." : "Burn Token"}
-            </button>
-          </div>
-
-          {owner && (
-            <div className="bg-base-200 rounded-lg px-4 py-2 text-center">
-              <span className="text-sm break-all">Owner: {owner}</span>
-            </div>
-          )}
         </div>
       </div>
+
+      {/* Deposit ETH */}
+      <div className="card bg-base-200 shadow-xl">
+        <div className="card-body">
+          <h2 className="card-title">Deposit ETH</h2>
+          <form onSubmit={handleSubmit} data-action="deposit" className="space-y-4">
+            <div>
+              <label className="label">
+                <span className="label-text">Amount (ETH)</span>
+              </label>
+              <input
+                type="text"
+                name="value"
+                value={formData.value}
+                onChange={handleInputChange}
+                className="input input-bordered w-full"
+                placeholder="0.1"
+              />
+            </div>
+            <button type="submit" className="btn btn-primary">
+              Deposit
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {/* Submit Transaction */}
+      <div className="card bg-base-200 shadow-xl">
+        <div className="card-body">
+          <h2 className="card-title">Submit Transaction</h2>
+          <form onSubmit={handleSubmit} data-action="submitTransaction" className="space-y-4">
+            <div>
+              <label className="label">
+                <span className="label-text">To Address</span>
+              </label>
+              <input
+                type="text"
+                name="to"
+                value={formData.to}
+                onChange={handleInputChange}
+                className="input input-bordered w-full"
+                placeholder="0x..."
+              />
+            </div>
+            <div>
+              <label className="label">
+                <span className="label-text">Value (ETH)</span>
+              </label>
+              <input
+                type="text"
+                name="value"
+                value={formData.value}
+                onChange={handleInputChange}
+                className="input input-bordered w-full"
+                placeholder="0.1"
+              />
+            </div>
+            <div>
+              <label className="label">
+                <span className="label-text">Data (hex)</span>
+              </label>
+              <input
+                type="text"
+                name="data"
+                value={formData.data}
+                onChange={handleInputChange}
+                className="input input-bordered w-full"
+                placeholder="0x"
+              />
+            </div>
+            <button type="submit" className="btn btn-primary">
+              Submit Transaction
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {/* Transaction Management */}
+      <div className="card bg-base-200 shadow-xl">
+        <div className="card-body">
+          <h2 className="card-title">Transaction Management</h2>
+          <div className="space-y-6">
+            <form onSubmit={handleSubmit} data-action="confirmTransaction" className="space-y-4">
+              <div>
+                <label className="label">
+                  <span className="label-text">Confirm Transaction</span>
+                </label>
+                <input
+                  type="number"
+                  name="txIndex"
+                  value={formData.txIndex}
+                  onChange={handleInputChange}
+                  className="input input-bordered w-full"
+                  placeholder="Transaction Index"
+                />
+              </div>
+              <button type="submit" className="btn btn-success">
+                Confirm
+              </button>
+            </form>
+
+            <form onSubmit={handleSubmit} data-action="executeTransaction" className="space-y-4">
+              <div>
+                <label className="label">
+                  <span className="label-text">Execute Transaction</span>
+                </label>
+                <input
+                  type="number"
+                  name="txIndex"
+                  value={formData.txIndex}
+                  onChange={handleInputChange}
+                  className="input input-bordered w-full"
+                  placeholder="Transaction Index"
+                />
+              </div>
+              <button type="submit" className="btn btn-accent">
+                Execute
+              </button>
+            </form>
+
+            <form onSubmit={handleSubmit} data-action="revokeConfirmation" className="space-y-4">
+              <div>
+                <label className="label">
+                  <span className="label-text">Revoke Confirmation</span>
+                </label>
+                <input
+                  type="number"
+                  name="txIndex"
+                  value={formData.txIndex}
+                  onChange={handleInputChange}
+                  className="input input-bordered w-full"
+                  placeholder="Transaction Index"
+                />
+              </div>
+              <button type="submit" className="btn btn-error">
+                Revoke
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      {/* Check Owner Status */}
+      <div className="card bg-base-200 shadow-xl">
+        <div className="card-body">
+          <h2 className="card-title">Check Owner Status</h2>
+          <form onSubmit={handleSubmit} data-action="checkOwner" className="space-y-4">
+            <div>
+              <label className="label">
+                <span className="label-text">Address</span>
+              </label>
+              <input
+                type="text"
+                name="checkAddress"
+                value={formData.checkAddress}
+                onChange={handleInputChange}
+                className="input input-bordered w-full"
+                placeholder="0x..."
+              />
+            </div>
+            <button type="submit" className="btn btn-primary">
+              Check Owner
+            </button>
+            {isOwnerResult !== null && (
+              <div className={`alert ${isOwnerResult ? "alert-success" : "alert-error"}`}>
+                <span>Address is {isOwnerResult ? "an owner" : "not an owner"}</span>
+              </div>
+            )}
+          </form>
+        </div>
+      </div>
+
+      {/* Initialize Contract */}
+      <form data-action="initialize" onSubmit={handleSubmit} className="flex flex-col gap-3 p-4 border rounded">
+        <h3 className="text-lg font-bold">Initialize Contract</h3>
+        <div className="form-control">
+          <label className="label">Owner Addresses (comma-separated)</label>
+          <input
+            type="text"
+            name="owners"
+            value={formData.owners}
+            onChange={handleInputChange}
+            placeholder="0x123...,0x456..."
+            className="input input-bordered"
+            required
+          />
+        </div>
+        <div className="form-control">
+          <label className="label">Required Confirmations</label>
+          <input
+            type="number"
+            name="numConfirmationsRequired"
+            value={formData.numConfirmationsRequired}
+            onChange={handleInputChange}
+            placeholder="2"
+            className="input input-bordered"
+            required
+            min="1"
+          />
+        </div>
+        <button type="submit" className="btn btn-primary" disabled={loading}>
+          Initialize
+        </button>
+      </form>
     </div>
   );
 }
