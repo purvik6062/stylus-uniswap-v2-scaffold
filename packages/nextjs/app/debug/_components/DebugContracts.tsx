@@ -1,452 +1,156 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { IMultiSig } from "./IMultiSig";
+import { IVendingMachine } from "./IVendingMachine";
 import { ethers } from "ethers";
 
+const contractAddress = "0xa6e41ffd769491a42a6e5ce453259b93983a22ef"; // Get this from run-dev-node.sh output
+const provider = new ethers.JsonRpcProvider("http://localhost:8547/");
+const privateKey = "0xb6b15c8cb491557369f3c7d2c287b053eb229daa9c22138887752191c9520659";
+const signer = new ethers.Wallet(privateKey, provider);
+const contract = new ethers.Contract(contractAddress, IVendingMachine, signer);
+
 export default function DebugContracts() {
-  const [contract, setContract] = useState<ethers.Contract | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [numConfirmations, setNumConfirmations] = useState<number>(0);
-  const [transactionCount, setTransactionCount] = useState<number>(0);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [lastTxHash, setLastTxHash] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
-    to: "",
-    value: "",
-    data: "",
-    txIndex: "",
-    checkAddress: "",
-    owners: "", // Add this field for comma-separated owner addresses
-    numConfirmationsRequired: "", // Add this field for required confirmations
-  });
-  const [isOwnerResult, setIsOwnerResult] = useState<boolean | null>(null);
+  const [userAddress, setUserAddress] = useState("");
+  const [balance, setBalance] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [lastCupcakeTime, setLastCupcakeTime] = useState<any>(null);
 
-  useEffect(() => {
-    initializeContract();
-  }, []);
-
-  const initializeContract = async () => {
-    try {
-      if (typeof window === "undefined") return;
-
-      const contractAddress = "0xa6e41ffd769491a42a6e5ce453259b93983a22ef";
-      const rpcUrl = "http://localhost:8547";
-      const privateKey = "0xb6b15c8cb491557369f3c7d2c287b053eb229daa9c22138887752191c9520659";
-      // const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
-      // const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
-      // const privateKey = process.env.NEXT_PUBLIC_PRIVATE_KEY;
-
-      if (!contractAddress || !rpcUrl || !privateKey) {
-        throw new Error("Missing environment variables. Please check your .env.local file");
-      }
-
-      const provider = new ethers.JsonRpcProvider(rpcUrl);
-
-      try {
-        const network = await provider.getNetwork();
-        console.log("Connected to network:", network.name);
-      } catch (e) {
-        throw new Error("Failed to connect to network. Please check your RPC URL and network status");
-      }
-
-      const signer = new ethers.Wallet(privateKey, provider);
-      console.log("Signer address:", await signer.getAddress());
-
-      const newContract = new ethers.Contract(contractAddress, IMultiSig, signer);
-
-      // Verify contract deployment
-      const code = await provider.getCode(contractAddress);
-      if (code === "0x") {
-        throw new Error("No contract deployed at the specified address");
-      }
-
-      setContract(newContract);
-
-      // Test basic contract interaction
-      try {
-        await newContract.numConfirmationsRequired();
-        console.log("Contract connection successful");
-      } catch (e) {
-        throw new Error("Contract interaction failed. Please verify the contract ABI and address");
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to initialize contract";
-      setError(errorMessage);
-      console.error("Contract initialization error:", err);
-    }
-  };
-
-  const fetchContractData = async () => {
-    if (!contract) return;
-
-    try {
-      setLoading(true);
-      const [numRequired, txCount] = await Promise.all([
-        contract.numConfirmationsRequired(),
-        contract.getTransactionCount(),
-      ]);
-
-      setNumConfirmations(Number(numRequired));
-      setTransactionCount(Number(txCount));
-
-      console.log("Contract state updated:", {
-        numConfirmations: Number(numRequired),
-        transactionCount: Number(txCount),
-      });
-    } catch (error) {
-      console.error("Error fetching contract data:", error);
-      setError("Failed to fetch contract data. Please check console for details.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (contract) {
-      fetchContractData();
-    }
-  }, [contract]);
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!contract) {
-      setError("Contract not initialized");
+  const checkBalance = async () => {
+    if (!userAddress) {
+      setError("Please enter a valid address");
       return;
     }
 
-    setError(null);
     setLoading(true);
-    setLastTxHash(null);
-
-    const form = e.currentTarget;
-    const action = form.getAttribute("data-action");
-
+    setError("");
     try {
-      let tx;
-      switch (action) {
-        case "deposit":
-          tx = await contract.deposit({
-            value: ethers.parseEther(formData.value),
-          });
-          break;
-
-        case "submitTransaction":
-          tx = await contract.submitTransaction(formData.to, ethers.parseEther(formData.value), formData.data || "0x");
-          break;
-
-        case "confirmTransaction":
-          tx = await contract.confirmTransaction(formData.txIndex);
-          break;
-
-        case "executeTransaction":
-          tx = await contract.executeTransaction(formData.txIndex);
-          break;
-
-        case "revokeConfirmation":
-          tx = await contract.revokeConfirmation(formData.txIndex);
-          break;
-
-        case "checkOwner":
-          const isOwner = await contract.isOwner(formData.checkAddress);
-          setIsOwnerResult(isOwner);
-          console.log("Owner check result:", isOwner);
-          break;
-
-        case "initialize":
-          // Split comma-separated addresses into array and remove whitespace
-          const ownerAddresses = formData.owners.split(",").map(addr => addr.trim());
-          tx = await contract.initialize(ownerAddresses, ethers.toNumber(formData.numConfirmationsRequired), {
-            gasLimit: 10000000,
-          });
-          break;
-
-        default:
-          throw new Error("Invalid action");
-      }
-
-      if (tx) {
-        console.log("Transaction submitted:", tx.hash);
-        setLastTxHash(tx.hash);
-
-        // Wait for transaction confirmation
-        const receipt = await tx.wait();
-        console.log("Transaction confirmed:", receipt);
-
-        // Clear form data after successful transaction
-        if (action !== "checkOwner") {
-          setFormData({
-            to: "",
-            value: "",
-            data: "",
-            txIndex: "",
-            checkAddress: "",
-            owners: "",
-            numConfirmationsRequired: "",
-          });
-        }
-      }
-
-      await fetchContractData();
+      const balance = await contract.getCupcakeBalanceFor(userAddress);
+      setBalance(balance.toString());
+      setSuccess(`Successfully retrieved balance for ${userAddress}`);
     } catch (err) {
-      console.error("Transaction error:", err);
-      let errorMessage = "Transaction failed";
-
-      if (err instanceof Error) {
-        // Parse ethers error message
-        const match = err.message.match(/reason="([^"]+)"/);
-        errorMessage = match ? match[1] : err.message;
-      }
-
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
+      setError(`Error checking balance: ${err}`);
     }
+    setLoading(false);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const giveCupcake = async () => {
+    if (!userAddress) {
+      setError("Please enter a valid address");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    try {
+      const tx = await contract.giveCupcakeTo(userAddress);
+      await tx.wait();
+      const newBalance = await contract.getCupcakeBalanceFor(userAddress);
+      setBalance(newBalance.toString());
+      setSuccess(`Successfully gave a cupcake to ${userAddress}`);
+      setLastCupcakeTime(Date.now());
+    } catch (err) {
+      setError(`Error giving cupcake: ${err}`);
+    }
+    setLoading(false);
   };
 
-  // Rest of the component remains the same...
   return (
-    <div className="flex flex-col gap-4 w-full max-w-3xl mx-auto p-4">
-      {error && (
-        <div className="alert alert-error overflow-x-auto">
-          <span className="font-bold">Error:</span>
-          <span className="">{error}</span>
-        </div>
-      )}
+    <div className="max-w-2xl mx-auto p-6 space-y-6">
+      {/* Main Debug Card */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">🧁 Cupcake Vending Machine Debug</h2>
 
-      {loading && (
-        <div className="alert alert-info">
-          <span>Processing transaction...</span>
-        </div>
-      )}
-
-      {lastTxHash && (
-        <div className="alert alert-success">
-          <span>Transaction submitted: {lastTxHash}</span>
-        </div>
-      )}
-
-      {/* Contract Status */}
-      <div className="card bg-base-200 shadow-xl">
-        <div className="card-body">
-          <h2 className="card-title">Contract Status</h2>
-          <div className="space-y-2">
-            <p>Required Confirmations: {numConfirmations}</p>
-            <p>Total Transactions: {transactionCount}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Deposit ETH */}
-      <div className="card bg-base-200 shadow-xl">
-        <div className="card-body">
-          <h2 className="card-title">Deposit ETH</h2>
-          <form onSubmit={handleSubmit} data-action="deposit" className="space-y-4">
-            <div>
-              <label className="label">
-                <span className="label-text">Amount (ETH)</span>
-              </label>
-              <input
-                type="text"
-                name="value"
-                value={formData.value}
-                onChange={handleInputChange}
-                className="input input-bordered w-full"
-                placeholder="0.1"
-              />
-            </div>
-            <button type="submit" className="btn btn-primary">
-              Deposit
-            </button>
-          </form>
-        </div>
-      </div>
-
-      {/* Submit Transaction */}
-      <div className="card bg-base-200 shadow-xl">
-        <div className="card-body">
-          <h2 className="card-title">Submit Transaction</h2>
-          <form onSubmit={handleSubmit} data-action="submitTransaction" className="space-y-4">
-            <div>
-              <label className="label">
-                <span className="label-text">To Address</span>
-              </label>
-              <input
-                type="text"
-                name="to"
-                value={formData.to}
-                onChange={handleInputChange}
-                className="input input-bordered w-full"
-                placeholder="0x..."
-              />
-            </div>
-            <div>
-              <label className="label">
-                <span className="label-text">Value (ETH)</span>
-              </label>
-              <input
-                type="text"
-                name="value"
-                value={formData.value}
-                onChange={handleInputChange}
-                className="input input-bordered w-full"
-                placeholder="0.1"
-              />
-            </div>
-            <div>
-              <label className="label">
-                <span className="label-text">Data (hex)</span>
-              </label>
-              <input
-                type="text"
-                name="data"
-                value={formData.data}
-                onChange={handleInputChange}
-                className="input input-bordered w-full"
-                placeholder="0x"
-              />
-            </div>
-            <button type="submit" className="btn btn-primary">
-              Submit Transaction
-            </button>
-          </form>
-        </div>
-      </div>
-
-      {/* Transaction Management */}
-      <div className="card bg-base-200 shadow-xl">
-        <div className="card-body">
-          <h2 className="card-title">Transaction Management</h2>
-          <div className="space-y-6">
-            <form onSubmit={handleSubmit} data-action="confirmTransaction" className="space-y-4">
-              <div>
-                <label className="label">
-                  <span className="label-text">Confirm Transaction</span>
-                </label>
-                <input
-                  type="number"
-                  name="txIndex"
-                  value={formData.txIndex}
-                  onChange={handleInputChange}
-                  className="input input-bordered w-full"
-                  placeholder="Transaction Index"
-                />
-              </div>
-              <button type="submit" className="btn btn-success">
-                Confirm
-              </button>
-            </form>
-
-            <form onSubmit={handleSubmit} data-action="executeTransaction" className="space-y-4">
-              <div>
-                <label className="label">
-                  <span className="label-text">Execute Transaction</span>
-                </label>
-                <input
-                  type="number"
-                  name="txIndex"
-                  value={formData.txIndex}
-                  onChange={handleInputChange}
-                  className="input input-bordered w-full"
-                  placeholder="Transaction Index"
-                />
-              </div>
-              <button type="submit" className="btn btn-accent">
-                Execute
-              </button>
-            </form>
-
-            <form onSubmit={handleSubmit} data-action="revokeConfirmation" className="space-y-4">
-              <div>
-                <label className="label">
-                  <span className="label-text">Revoke Confirmation</span>
-                </label>
-                <input
-                  type="number"
-                  name="txIndex"
-                  value={formData.txIndex}
-                  onChange={handleInputChange}
-                  className="input input-bordered w-full"
-                  placeholder="Transaction Index"
-                />
-              </div>
-              <button type="submit" className="btn btn-error">
-                Revoke
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-
-      {/* Check Owner Status */}
-      <div className="card bg-base-200 shadow-xl">
-        <div className="card-body">
-          <h2 className="card-title">Check Owner Status</h2>
-          <form onSubmit={handleSubmit} data-action="checkOwner" className="space-y-4">
-            <div>
-              <label className="label">
-                <span className="label-text">Address</span>
-              </label>
-              <input
-                type="text"
-                name="checkAddress"
-                value={formData.checkAddress}
-                onChange={handleInputChange}
-                className="input input-bordered w-full"
-                placeholder="0x..."
-              />
-            </div>
-            <button type="submit" className="btn btn-primary">
-              Check Owner
-            </button>
-            {isOwnerResult !== null && (
-              <div className={`alert ${isOwnerResult ? "alert-success" : "alert-error"}`}>
-                <span>Address is {isOwnerResult ? "an owner" : "not an owner"}</span>
-              </div>
-            )}
-          </form>
-        </div>
-      </div>
-
-      {/* Initialize Contract */}
-      <form data-action="initialize" onSubmit={handleSubmit} className="flex flex-col gap-3 p-4 border rounded">
-        <h3 className="text-lg font-bold">Initialize Contract</h3>
-        <div className="form-control">
-          <label className="label">Owner Addresses (comma-separated)</label>
+        {/* Input Section */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">User Address</label>
           <input
             type="text"
-            name="owners"
-            value={formData.owners}
-            onChange={handleInputChange}
-            placeholder="0x123...,0x456..."
-            className="input input-bordered"
-            required
+            className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 
+                     dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            placeholder="Enter Ethereum address"
+            value={userAddress}
+            onChange={e => setUserAddress(e.target.value)}
           />
         </div>
-        <div className="form-control">
-          <label className="label">Required Confirmations</label>
-          <input
-            type="number"
-            name="numConfirmationsRequired"
-            value={formData.numConfirmationsRequired}
-            onChange={handleInputChange}
-            placeholder="2"
-            className="input input-bordered"
-            required
-            min="1"
-          />
+
+        {/* Buttons */}
+        <div className="flex gap-4">
+          <button
+            onClick={checkBalance}
+            disabled={loading}
+            className="flex-1 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 
+                     disabled:bg-blue-300 dark:disabled:bg-blue-800"
+          >
+            Check Balance
+          </button>
+          <button
+            onClick={giveCupcake}
+            disabled={loading}
+            className="flex-1 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 
+                     disabled:bg-green-300 dark:disabled:bg-green-800"
+          >
+            Give Cupcake
+          </button>
         </div>
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          Initialize
-        </button>
-      </form>
+
+        {/* Balance Display */}
+        {balance !== null && (
+          <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg">
+            <div className="font-medium text-gray-900 dark:text-gray-200">Current Balance:</div>
+            <div className="text-2xl text-gray-900 dark:text-white">{balance} 🧁</div>
+          </div>
+        )}
+
+        {/* Last Cupcake Time */}
+        {lastCupcakeTime && (
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            Last cupcake given: {new Date(lastCupcakeTime).toLocaleTimeString()}
+          </div>
+        )}
+
+        {/* Error Message */}
+        {error && (
+          <div
+            className="bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-800 
+                       text-red-700 dark:text-red-400 px-4 py-3 rounded"
+          >
+            {error}
+          </div>
+        )}
+
+        {/* Success Message */}
+        {success && (
+          <div
+            className="bg-green-100 dark:bg-green-900/30 border border-green-400 dark:border-green-800 
+                       text-green-700 dark:text-green-400 px-4 py-3 rounded"
+          >
+            {success}
+          </div>
+        )}
+      </div>
+
+      {/* Contract Info Card */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-2">
+        <h3 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">Contract Information</h3>
+
+        <div className="text-gray-900 dark:text-white">
+          <span className="font-medium">Contract Address: </span>
+          <code className="bg-gray-100 dark:bg-gray-700 p-1 rounded text-sm">{contractAddress}</code>
+        </div>
+
+        <div className="text-gray-900 dark:text-white">
+          <span className="font-medium">Network: </span>
+          <span>Local Testnet (http://localhost:8547/)</span>
+        </div>
+
+        <div className="text-gray-900 dark:text-white">
+          <span className="font-medium">Cupcake Cooldown: </span>
+          <span>5 seconds between cupcakes</span>
+        </div>
+      </div>
     </div>
   );
 }
