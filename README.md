@@ -1,88 +1,222 @@
-# 🏗 Scaffold-ETH 2
+# 🚩 Challenge #4: 🔄 Uniswap V2-Stylus 
 
-<h4 align="center">
-  <a href="https://docs.scaffoldeth.io">Documentation</a> |
-  <a href="https://scaffoldeth.io">Website</a>
-</h4>
+🎫 Build a Uniswap V2-style liquidity pool interface with Arbitrum Stylus:
 
-🧪 An open-source, up-to-date toolkit for building decentralized applications (dapps) on the Ethereum blockchain. It's designed to make it easier for developers to create and deploy smart contracts and build user interfaces that interact with those contracts.
+👷‍♀️ In this challenge, you'll build and deploy smart contracts that enable users to interact with a Uniswap V2-style liquidity pool. You'll work with token pairs, implement liquidity management functions, and create a frontend that allows users to perform various pool operations! 🚀
 
-⚙️ Built using NextJS, RainbowKit, Foundry/Hardhat, Wagmi, Viem, and Typescript.
+🌟 The final deliverable is a full-stack application featuring token pair initialization, liquidity management, token swaps, and allowance management. Deploy your contracts to a testnet, then build and upload your app to a public web server.
 
-- ✅ **Contract Hot Reload**: Your frontend auto-adapts to your smart contract as you edit it.
-- 🪝 **[Custom hooks](https://docs.scaffoldeth.io/hooks/)**: Collection of React hooks wrapper around [wagmi](https://wagmi.sh/) to simplify interactions with smart contracts with typescript autocompletion.
-- 🧱 [**Components**](https://docs.scaffoldeth.io/components/): Collection of common web3 components to quickly build your frontend.
-- 🔥 **Burner Wallet & Local Faucet**: Quickly test your application with a burner wallet and local faucet.
-- 🔐 **Integration with Wallet Providers**: Connect to different wallet providers and interact with the Ethereum network.
+## Checkpoint 0: 📦 Environment Setup 📚
 
-![Debug Contracts tab](https://github.com/scaffold-eth/scaffold-eth-2/assets/55535804/b237af0c-5027-4849-a5c1-2e31495cccb1)
+Before starting, ensure you have the following installed:
 
-## Requirements
-
-Before you begin, you need to install the following tools:
-
-- [Node (>= v18.18)](https://nodejs.org/en/download/)
-- Yarn ([v1](https://classic.yarnpkg.com/en/docs/install/) or [v2+](https://yarnpkg.com/getting-started/install))
+- [Node.js (>= v18.17)](https://nodejs.org/en/download/)
+- [Yarn](https://classic.yarnpkg.com/en/docs/install/)
 - [Git](https://git-scm.com/downloads)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop)
 
-## Quickstart
+### Clone the Repository
 
-To get started with Scaffold-ETH 2, follow the steps below:
-
-1. Install the latest version of Scaffold-ETH 2
-
-```
-npx create-eth@latest
-```
-
-This command will install all the necessary packages and dependencies, so it might take a while.
-
-> [!NOTE]
-> You can also initialize your project with one of our extensions to add specific features or starter-kits. Learn more in our [extensions documentation](https://docs.scaffoldeth.io/extensions/).
-
-2. Run a local network in the first terminal:
-
-```
-yarn chain
+```bash
+git clone https://github.com/abhi152003/speedrun-rust.git
+cd speedrun-rust
+git checkout stylus-uniswap
 ```
 
-This command starts a local Ethereum network that runs on your local machine and can be used for testing and development. Learn how to [customize your network configuration](https://docs.scaffoldeth.io/quick-start/environment#1-initialize-a-local-blockchain).
+## Checkpoint 1: 🚀 Start Your Dev Environment
 
-3. On a second terminal, deploy the test contract:
+### Step 1: Start the Nitro Dev Node
 
+1. Navigate to the `cargo-stylus` folder:
+   ```bash
+   cd packages/cargo-stylus
+   ```
+
+2. Run the `run-dev-node.sh` script:
+   ```bash
+   bash run-dev-node.sh
+   ```
+   This script:
+   - Spins up an Arbitrum Stylus Nitro dev node in Docker.
+   - Deploys the contract.
+   - Generates the ABI for interacting with the contract.
+
+> The dev node will be accessible at `http://localhost:8547`.
+
+### Step 2: Start the Frontend
+
+1. Navigate to the `nextjs` folder:
+   ```bash
+   cd ../nextjs
+   ```
+
+2. Install dependencies:
+   ```bash
+   yarn install
+   ```
+
+3. Start the development server:
+   ```bash
+   yarn dev
+   ```
+
+> The app will be available at [http://localhost:3000](http://localhost:3000).
+
+![Uniswap Interface](images/uniswap-frontend.png)
+
+## Checkpoint 2: 💫 Explore the Features
+
+### 1. Pool Initialization
+
+![Pool Initialization Interface](images/pool-init.png)
+*Pool initialization interface and process flow*
+
+- Navigate to the "Liquidity Operations" tab in the frontend.
+- This feature interacts with the Pool Initializer contract.
+- Required inputs:
+  ```
+  Token0 Address: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+  Token1 Address: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+  FeeTo Address:  0x3f1Eae7D46d88F08fc2F8ed27FCb2AB183EB2d0E
+  ```
+- Click "Initialize Pool" to create a new liquidity pool for the token pair.
+- The transaction will require a gas limit of 10,000,000.
+
+### 2. Liquidity Management
+
+![Liquidity Management Interface](images/liquidity-manage.png)
+*Liquidity management interface and process flow*
+
+#### Add Liquidity (Mint)
+- Navigate to the "Liquidity Operations" tab
+- Under "Mint Liquidity" section:
+  1. Enter the recipient address in the "To Address" field (e.g. 0x3f1Eae7D46d88F08fc2F8ed27FCb2AB183EB2d0E)
+  2. Click "Mint" to add liquidity
+  3. The transaction will require a gas limit of 10,000,000
+
+#### Remove Liquidity (Burn)
+- In the same tab, find the "Burn Liquidity" section:
+  1. Enter the recipient address for withdrawn tokens (e.g. 0x3f1Eae7D46d88F08fc2F8ed27FCb2AB183EB2d0E)
+  2. Click "Burn" to remove liquidity
+  3. The transaction will require a gas limit of 10,000,000
+
+### 3. Token Swaps
+
+![Token Swap Interface](images/token-swap.png)
+*Token swap interface and process flow*
+
+- In the "Liquidity Operations" tab, locate the "Swap Tokens" section:
+  1. Enter Amount0 Out (amount of first token to receive)
+  2. Enter Amount1 Out (amount of second token to receive)
+  3. Specify recipient address in the "To Address" field (e.g. 0x3f1Eae7D46d88F08fc2F8ed27FCb2AB183EB2d0E)
+  4. Note: One of the amounts must be zero
+  5. Click "Swap" to execute the token swap
+  6. The transaction will require a gas limit of 10,000,000
+
+### 4. Token Transfers and Allowances
+
+![Token Transfers Interface](images/token-transfers.png)
+*Token swap interface and process flow*
+#### Token Transfers
+- Navigate to the "Token Transfers" tab:
+  1. Use "Transfer Tokens" to send tokens directly:
+     - Enter recipient address (e.g. 0x3f1Eae7D46d88F08fc2F8ed27FCb2AB183EB2d0E)
+     - Specify amount to transfer
+     - Click "Transfer"
+  2. Use "Transfer From" for approved transfers:
+     - Enter source address (e.g. 0xa6e41ffd769491a42a6e5ce453259b93983a22ef)
+     - Enter recipient address (e.g. 0x3f1Eae7D46d88F08fc2F8ed27FCb2AB183EB2d0E)
+     - Specify amount
+     - Click "Transfer From"
+  3. Check balances:
+     - Enter address to check (e.g. 0x3f1Eae7D46d88F08fc2F8ed27FCb2AB183EB2d0E)
+     - Click "Check Balance"
+     - View balance in the results section
+
+![Allowance Management Interface](images/allowance-mgmt.png)
+*Token swap interface and process flow*
+#### Allowance Management
+- Navigate to the "Allowances" tab:
+  1. Approve spending:
+     - Enter spender's address (e.g. 0xa6e41ffd769491a42a6e5ce453259b93983a22ef)
+     - Specify amount to approve
+     - Click "Approve"
+  2. Check allowances:
+     - Enter owner's address (e.g. 0x3f1Eae7D46d88F08fc2F8ed27FCb2AB183EB2d0E)
+     - Enter spender's address (e.g. 0xa6e41ffd769491a42a6e5ce453259b93983a22ef)
+     - Click "Check Allowance"
+     - View allowance in the results section
+
+## Checkpoint 3: 🛠 Modify and Deploy Contracts
+
+You can modify the contract logic by editing files in the `packages/cargo-stylus/src` folder. After making changes, redeploy by running:
+
+```bash
+bash run-dev-node.sh
 ```
-yarn deploy
+
+## 🛠️ Debugging Tips
+
+### Fixing Line Endings for Shell Scripts on Windows (CRLF Issue)
+
+If you encounter errors like `Command not found`, convert line endings to LF:
+
+```bash
+sudo apt install dos2unix
+dos2unix run-dev-node.sh
+chmod +x run-dev-node.sh
 ```
 
-This command deploys a test smart contract to the local network. You can find more information about how to customize your contract and deployment script in our [documentation](https://docs.scaffoldeth.io/quick-start/environment#2-deploy-your-smart-contract).
-
-4. On a third terminal, start your NextJS app:
-
-```
-yarn start
+Run the script again:
+```bash
+bash run-dev-node.sh
 ```
 
-Visit your app on: `http://localhost:3000`. You can interact with your smart contract using the `Debug Contracts` page. You can tweak the app config in `packages/nextjs/scaffold.config.ts`.
+### Common Issues:
+1. Connection Error: If you see "Failed to initialize contract":
+   - Ensure the Nitro dev node is running at http://localhost:8547
+   - Check if the contract address matches your deployed contract
 
-**What's next**:
+2. Transaction Errors:
+   - Ensure you have sufficient balance for gas fees
+   - Check that input addresses are valid Ethereum addresses
+   - Verify that token amounts are properly formatted
 
-Visit the [What's next section of our docs](https://docs.scaffoldeth.io/quick-start/environment#whats-next) to learn how to:
+## Checkpoint 4: 🚢 Ship your frontend! 🚁
 
-- Edit your smart contracts
-- Edit your deployment scripts
-- Customize your frontend
-- Edit the app config
-- Writing and running tests
-- [Setting up external services and API keys](https://docs.scaffoldeth.io/deploying/deploy-smart-contracts#configuration-of-third-party-services-for-production-grade-apps)
+To deploy your app to Vercel:
 
-## Documentation
+```bash
+yarn vercel
+```
 
-Visit our [docs](https://docs.scaffoldeth.io) to learn all the technical details and guides of Scaffold-ETH 2.
+Follow Vercel's instructions to get a public URL.
 
-To know more about its features, check out our [website](https://scaffoldeth.io).
+For production deployment:
+```bash
+yarn vercel --prod
+```
 
-## Contributing to Scaffold-ETH 2
+## Checkpoint 5: 📜 Contract Verification
 
-We welcome contributions to Scaffold-ETH 2!
+You can verify your deployed smart contract using:
 
-Please see [CONTRIBUTING.MD](https://github.com/scaffold-eth/scaffold-eth-2/blob/main/CONTRIBUTING.md) for more information and guidelines for contributing to Scaffold-ETH 2.
+```bash
+cargo stylus verify -e http://127.0.0.1:8547 --deployment-tx "$deployment_tx"
+```
+
+Replace `$deployment_tx` with your deployment transaction hash.
+
+## 🏁 Next Steps
+
+1. Add more token pairs to your liquidity pool
+2. Implement additional features like:
+   - Flash swaps
+   - Price oracles
+   - Fee management
+3. Enhance the frontend with:
+   - Price charts
+   - Transaction history
+   - Portfolio tracking
+
+Explore more challenges or contribute to this project!
