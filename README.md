@@ -41,6 +41,23 @@ git checkout stylus-uniswap
    - Deploys the contract.
    - Generates the ABI for interacting with the contract.
 
+## 🛠️ Debugging Tips
+
+### Fixing Line Endings for Shell Scripts on Windows (CRLF Issue)
+
+If you encounter errors like `Command not found`, convert line endings to LF:
+
+```bash
+sudo apt install dos2unix
+dos2unix run-dev-node.sh
+chmod +x run-dev-node.sh
+```
+
+Run the script again:
+```bash
+bash run-dev-node.sh
+```
+
 > The dev node will be accessible at `http://localhost:8547`.
 
 ### Step 2: Start the Frontend
@@ -152,23 +169,6 @@ git checkout stylus-uniswap
 
 You can modify the contract logic by editing files in the `packages/cargo-stylus/src` folder. After making changes, redeploy by running:
 
-```bash
-bash run-dev-node.sh
-```
-
-## 🛠️ Debugging Tips
-
-### Fixing Line Endings for Shell Scripts on Windows (CRLF Issue)
-
-If you encounter errors like `Command not found`, convert line endings to LF:
-
-```bash
-sudo apt install dos2unix
-dos2unix run-dev-node.sh
-chmod +x run-dev-node.sh
-```
-
-Run the script again:
 ```bash
 bash run-dev-node.sh
 ```
