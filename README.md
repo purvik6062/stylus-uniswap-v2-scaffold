@@ -29,7 +29,7 @@ git checkout stylus-uniswap
 
 1. Navigate to the `cargo-stylus` folder:
    ```bash
-   cd packages/cargo-stylus
+   cd packages/cargo-stylus/stylus-uniswap-v2
    ```
 
 2. Run the `run-dev-node.sh` script:
@@ -47,7 +47,7 @@ git checkout stylus-uniswap
 
 1. Navigate to the `nextjs` folder:
    ```bash
-   cd ../nextjs
+   cd ../../nextjs
    ```
 
 2. Install dependencies:
@@ -60,7 +60,7 @@ git checkout stylus-uniswap
    yarn dev
    ```
 
-> The app will be available at [http://localhost:3000](http://localhost:3000).
+> The app will be available at [http://localhost:3000](http://localhost:3000) as shown below.
 
 ![Uniswap Interface](images/uniswap-frontend.png)
 
@@ -116,7 +116,7 @@ git checkout stylus-uniswap
 ### 4. Token Transfers and Allowances
 
 ![Token Transfers Interface](images/token-transfers.png)
-*Token swap interface and process flow*
+*Token transfers interface and process flow*
 #### Token Transfers
 - Navigate to the "Token Transfers" tab:
   1. Use "Transfer Tokens" to send tokens directly:
@@ -133,9 +133,10 @@ git checkout stylus-uniswap
      - Click "Check Balance"
      - View balance in the results section
 
-![Allowance Management Interface](images/allowance-mgmt.png)
-*Token swap interface and process flow*
 #### Allowance Management
+
+![Allowance Management Interface](images/allowance-mgmt.png)
+*Allowances interface and process flow*
 - Navigate to the "Allowances" tab:
   1. Approve spending:
      - Enter spender's address (e.g. 0xa6e41ffd769491a42a6e5ce453259b93983a22ef)
